@@ -16,25 +16,27 @@ import re
 import sys
 import gc
 
-# --- Flask Keep Alive ---
+# --- Fixed Flask Keep Alive ---
 from flask import Flask
-from threading import Thread
 
 app = Flask('')
+
+# Flask ke redundant logs silent karne ke liye
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 @app.route('/')
 def home():
     return "I'm Marco File Host"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
 
 def keep_alive():
-    t = Thread(target=run_flask)
-    t.daemon = True
+    t = threading.Thread(target=run_flask, daemon=True)
     t.start()
-    print("Flask Keep-Alive server started.")
+    print("Flask Keep-Alive server started in background.")
 
 keep_alive()
 # --- End Flask Keep Alive ---
@@ -197,7 +199,7 @@ def is_bot_running(script_owner_id, file_name):
 def kill_process_tree(process_info):
     script_key = process_info.get('script_key', 'N/A')
     try:
-        if 'log_file' in process_info and hasattr(script_info['log_file'], 'close') and not script_info['log_file'].closed:
+        if 'log_file' in process_info and hasattr(process_info['log_file'], 'close') and not process_info['log_file'].closed:
             try: process_info['log_file'].close()
             except Exception: pass
 
