@@ -42,9 +42,9 @@ keep_alive()
 # --- End Flask Keep Alive ---
 
 # --- Configuration ---
-TOKEN = '8688749524:AAHFl91pB4pG4uiThovwi_5uN-eAWfKtklw' # Replace with your actual token
+TOKEN = '8688749524:AAHFl91pB4pG4uiThovwi_5uN-eAWfKtklw' # Updated Bot Token
 OWNER_ID = 8688749524 # Replace with your Owner ID
-YOUR_USERNAME = '@ALONEBOYS777'
+YOUR_USERNAME = '@bibitgamer13'
 
 # Folder setup - using absolute paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -392,21 +392,23 @@ def _logic_bot_speed(message):
     wait_msg = bot.reply_to(message, "🏃 Testing speed...")
     response_time = round((time.time() - start_time_ping) * 1000, 2)
     
-    # RAM Usage calculation
-    mem = psutil.virtual_memory()
-    mem_used_mb = round(mem.used / (1024 * 1024), 2)
+    # Process specific RAM calculation
+    process = psutil.Process(os.getpid())
+    mem_used_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     
     speed_msg = (f"⚡ **Bot Speed & System Status**:\n\n"
                  f"⏱️ API Latency: {response_time} ms\n"
-                 f"💾 RAM Used: {mem_used_mb} MB / 512 MB\n"
+                 f"💾 Process RAM Used: {mem_used_mb} MB / 512 MB\n"
                  f"🟢 System Status: Active")
     bot.edit_message_text(speed_msg, message.chat.id, wait_msg.message_id, parse_mode='Markdown')
 
 def _logic_ram_usage(message):
-    mem = psutil.virtual_memory()
-    used_mb = round(mem.used / (1024 * 1024), 2)
-    free_mb = round(mem.available / (1024 * 1024), 2)
-    percent = mem.percent
+    # Process specific RAM calculation fix
+    process = psutil.Process(os.getpid())
+    used_mb = round(process.memory_info().rss / (1024 * 1024), 2)
+    limit_mb = 512.0
+    percent = round((used_mb / limit_mb) * 100, 1)
+    free_mb = round(limit_mb - used_mb, 2)
     
     ram_msg = (f"🖥️ **Render RAM Usage Status**:\n\n"
                f"💾 Used RAM: **{used_mb} MB** / 512 MB\n"
@@ -569,4 +571,3 @@ def handle_callbacks(call):
         logger.error(f"Callback error: {e}")
 
 bot.infinity_polling(skip_pending=True)
-
