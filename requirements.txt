@@ -3,5 +3,4 @@ flask
 psutil
 requests
 aiohttp
-colorama
-pydantic
+pyTelegramBotAPI
