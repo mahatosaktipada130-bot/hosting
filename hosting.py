@@ -42,7 +42,7 @@ keep_alive()
 # --- End Flask Keep Alive ---
 
 # --- Configuration ---
-TOKEN = '8446111511:AAEithVQk9O68urzrv9kHL_FL-LvznOfMH0' # Replace with your actual token
+TOKEN = '8688749524:AAHFl91pB4pG4uiThovwi_5uN-eAWfKtklw' # Replace with your actual token
 OWNER_ID = 8790645158 # Replace with your Owner ID
 YOUR_USERNAME = '@bibitgamer13'
 
