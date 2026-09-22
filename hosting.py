@@ -4,20 +4,24 @@ import logging
 import gc
 import psutil
 import asyncio
-import threading
 from threading import Thread
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#            FLASK WEB SERVER (Render Ke Liye)
+#            FLASK WEB SERVER (Render Port)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 web_app = Flask(__name__)
 
 @web_app.route('/')
 def home():
-    return "Bot & Memory Cleaner are running live!"
+    return "Bot is active and running!"
+
+def run_flask():
+    """Flask app ko background thread mein chalata hai"""
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host='0.0.0.0', port=port, use_reloader=False)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #                  CONFIG
@@ -35,16 +39,16 @@ if not os.path.exists(HOST_DIR):
 #           MEMORY CLEANER SYSTEM
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def clear_memory():
-    """Unused memory aur RAM ko clean karta hai"""
-    gc.collect()  # Python Garbage Collector
+    """Unused RAM clean karta hai"""
+    gc.collect()
     process = psutil.Process(os.getpid())
     ram_mb = process.memory_info().rss / (1024 * 1024)
-    logger.info(f"🧹 [AUTO-CLEANER] Unused items cleared! Current RAM: {ram_mb:.2f} MB")
+    logger.info(f"🧹 [AUTO-CLEANER] RAM Usage: {ram_mb:.2f} MB")
 
 async def background_ram_cleaner():
-    """Har 2 minute mein background mein unused memory clear karega"""
+    """Har 2 minute mein RAM clear karega"""
     while True:
-        await asyncio.sleep(120)  # 120 seconds = 2 minutes
+        await asyncio.sleep(120)
         clear_memory()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -88,34 +92,26 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await msg.reply_text(f"❌ Error while running file: `{str(e)}`", parse_mode="Markdown")
     
-    # Task complete hone par immediate cleanup
     clear_memory()
 
 async def post_init(application: Application):
-    # Background Memory Cleaner Task Start Karein
     asyncio.create_task(background_ram_cleaner())
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#         TELEGRAM BOT THREAD FOR GUNICORN
+#                  MAIN
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def run_telegram_bot():
-    """Gunicorn ke andar background thread mein Telegram bot ko run karta hai"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+def main():
+    # 1. Web server ko background mein chalao
+    Thread(target=run_flask, daemon=True).start()
 
+    # 2. Bot ko Main Thread mein chalao (Isse set_wakeup_fd error fix ho jayega)
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
-    print("🤖 Bot started with Memory Auto-Cleaner...")
+    print("🤖 Bot main thread mein start ho gaya hai...")
     app.run_polling(drop_pending_updates=True)
 
-# Gunicorn start hote hi bot thread run ho jayega
-threading.Thread(target=run_telegram_bot, daemon=True).start()
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                  LOCAL RUN
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    web_app.run(host='0.0.0.0', port=port)
+    main()
+
