@@ -28,7 +28,7 @@ def run_flask():
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YAHAN_APNA_BOT_TOKEN_DALEIN")
 HOST_DIR = "hosted_files"
 
-# Running processes: {pid: {"file": filename, "proc": process_obj}}
+# Running processes: {pid: {"file": filename, "path": file_path, "proc": process_obj}}
 RUNNING_PROCESSES = {}
 
 logging.basicConfig(level=logging.INFO)
@@ -76,7 +76,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 **Multi-Bot Hosting & Control Manager**\n\n"
         "📌 **Features:**\n"
         "• Apni file (`.py`, `.sh`) bhejein -> Auto-Run ho jayegi\n"
-        "• **📋 Active Scripts** par click karke scripts control karein\n"
+        "• **📋 Active Scripts** par click karke scripts **Stop** ya **Restart** karein\n"
         "• Script crash hone par aapko exact error log mil jayega!",
         parse_mode="Markdown",
         reply_markup=KEYBOARD
@@ -87,7 +87,6 @@ async def monitor_script_output(proc, file_name, chat_id, context):
     await asyncio.sleep(3) # Wait 3 sec to check if it immediately crashes
     
     if proc.poll() is not None:
-        # Script crashed!
         stderr = proc.stderr.read().decode('utf-8') if proc.stderr else "Unknown error"
         error_msg = stderr[-1000:] if stderr else "No error log captured."
         
@@ -98,6 +97,24 @@ async def monitor_script_output(proc, file_name, chat_id, context):
         )
         if proc.pid in RUNNING_PROCESSES:
             del RUNNING_PROCESSES[proc.pid]
+
+def launch_process(file_path, file_name):
+    """File ko execute karke process object return karta hai"""
+    proc = None
+    if file_name.endswith(".py"):
+        proc = subprocess.Popen(
+            ["python3", file_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+    elif file_name.endswith(".sh"):
+        os.chmod(file_path, 0o755)
+        proc = subprocess.Popen(
+            ["bash", file_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+    return proc
 
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -115,42 +132,30 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await tg_file.download_to_drive(file_path)
 
     try:
-        proc = None
-        if file_name.endswith(".py"):
-            # Subprocess with pipe to capture errors
-            proc = subprocess.Popen(
-                ["python3", file_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-        elif file_name.endswith(".sh"):
-            os.chmod(file_path, 0o755)
-            proc = subprocess.Popen(
-                ["bash", file_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-        else:
+        proc = launch_process(file_path, file_name)
+        if not proc:
             await msg.reply_text("📁 File save ho gayi hai lekin auto-run unsupported extension par nahi hoga.", reply_markup=KEYBOARD)
             return
 
-        if proc:
-            RUNNING_PROCESSES[proc.pid] = {"file": file_name, "proc": proc}
-            
-            stop_btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"🛑 Stop {file_name}", callback_data=f"stop_{proc.pid}")]
-            ])
+        RUNNING_PROCESSES[proc.pid] = {"file": file_name, "path": file_path, "proc": proc}
+        
+        # Stop & Restart Buttons
+        control_btns = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"🛑 Stop", callback_data=f"stop_{proc.pid}"),
+                InlineKeyboardButton(f"🔄 Restart", callback_data=f"restart_{proc.pid}")
+            ]
+        ])
 
-            await msg.reply_text(
-                f"✅ **Script Running!**\n\n"
-                f"📄 File: `{file_name}`\n"
-                f"🆔 **PID:** `{proc.pid}`",
-                parse_mode="Markdown",
-                reply_markup=stop_btn
-            )
+        await msg.reply_text(
+            f"✅ **Script Running!**\n\n"
+            f"📄 File: `{file_name}`\n"
+            f"🆔 **PID:** `{proc.pid}`",
+            parse_mode="Markdown",
+            reply_markup=control_btns
+        )
 
-            # Crash monitor background task start
-            asyncio.create_task(monitor_script_output(proc, file_name, msg.chat_id, context))
+        asyncio.create_task(monitor_script_output(proc, file_name, msg.chat_id, context))
 
     except Exception as e:
         await msg.reply_text(f"❌ Error while running file: `{str(e)}`", parse_mode="Markdown", reply_markup=KEYBOARD)
@@ -166,13 +171,15 @@ async def list_processes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 Abhi koi bhi script run nahi ho rahi hai.", reply_markup=KEYBOARD)
         return
 
-    text = "⚙️ **Active Running Scripts:**\nNiche kisi bhi script ke **Stop** button par click karke use band karein:\n"
+    text = "⚙️ **Active Running Scripts:**\nNiche kisi bhi script ko **Stop** ya **Restart** karein:\n"
     
     inline_buttons = []
     for pid, data in RUNNING_PROCESSES.items():
         fname = data["file"]
-        button_text = f"🛑 Stop {fname} (PID: {pid})"
-        inline_buttons.append([InlineKeyboardButton(button_text, callback_data=f"stop_{pid}")])
+        inline_buttons.append([
+            InlineKeyboardButton(f"🛑 Stop {fname}", callback_data=f"stop_{pid}"),
+            InlineKeyboardButton(f"🔄 Restart", callback_data=f"restart_{pid}")
+        ])
 
     reply_inline_markup = InlineKeyboardMarkup(inline_buttons)
     await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_inline_markup)
@@ -182,9 +189,11 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
 
     data = query.data
+    chat_id = query.message.chat_id
+
+    # Stop Handler
     if data.startswith("stop_"):
         pid = int(data.split("_")[1])
-        
         try:
             if pid in RUNNING_PROCESSES or psutil.pid_exists(pid):
                 p = psutil.Process(pid)
@@ -196,6 +205,53 @@ async def handle_inline_button(update: Update, context: ContextTypes.DEFAULT_TYP
                 await query.edit_message_text("❌ Yeh process pehle hi stop ho chuka hai.")
         except Exception as e:
             await query.edit_message_text(f"❌ Process stop karne mein error aaya: `{str(e)}`", parse_mode="Markdown")
+
+    # Restart Handler
+    elif data.startswith("restart_"):
+        pid = int(data.split("_")[1])
+        if pid not in RUNNING_PROCESSES and not psutil.pid_exists(pid):
+            await query.edit_message_text("❌ Yeh process pehle hi band ho chuka hai, restart nahi kiya ja sakta.")
+            return
+
+        data_info = RUNNING_PROCESSES.pop(pid, None)
+        file_name = data_info["file"] if data_info else "Unknown File"
+        file_path = data_info["path"] if data_info else os.path.join(HOST_DIR, file_name)
+
+        # Terminate old process
+        try:
+            if psutil.pid_exists(pid):
+                psutil.Process(pid).terminate()
+        except Exception:
+            pass
+
+        await query.edit_message_text(f"🔄 Restarting `{file_name}`...", parse_mode="Markdown")
+
+        # Launch new process
+        try:
+            new_proc = launch_process(file_path, file_name)
+            if new_proc:
+                RUNNING_PROCESSES[new_proc.pid] = {"file": file_name, "path": file_path, "proc": new_proc}
+                
+                control_btns = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton(f"🛑 Stop", callback_data=f"stop_{new_proc.pid}"),
+                        InlineKeyboardButton(f"🔄 Restart", callback_data=f"restart_{new_proc.pid}")
+                    ]
+                ])
+
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"✅ **Script Restarted Successfully!**\n\n📄 File: `{file_name}`\n🆔 **New PID:** `{new_proc.pid}`",
+                    parse_mode="Markdown",
+                    reply_markup=control_btns
+                )
+                asyncio.create_task(monitor_script_output(new_proc, file_name, chat_id, context))
+        except Exception as e:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"❌ Error while restarting `{file_name}`: `{str(e)}`",
+                parse_mode="Markdown"
+            )
 
     clear_memory()
 
@@ -257,7 +313,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
-    print("🤖 Crash-Monitor Hosting Bot started...")
+    print("🤖 Process Manager with Restart Option started...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
