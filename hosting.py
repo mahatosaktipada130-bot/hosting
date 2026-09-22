@@ -43,8 +43,8 @@ keep_alive()
 
 # --- Configuration ---
 TOKEN = '8688749524:AAHFl91pB4pG4uiThovwi_5uN-eAWfKtklw' # Replace with your actual token
-OWNER_ID = 8790645158 # Replace with your Owner ID
-YOUR_USERNAME = '@bibitgamer13'
+OWNER_ID = 8688749524 # Replace with your Owner ID
+YOUR_USERNAME = '@ALONEBOYS777'
 
 # Folder setup - using absolute paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
