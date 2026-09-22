@@ -41,10 +41,10 @@ def keep_alive():
 keep_alive()
 # --- End Flask Keep Alive ---
 
-# --- Configuration ---
-TOKEN = '8688749524:AAHFl91pB4pG4uiThovwi_5uN-eAWfKtklw' # Updated Bot Token
-OWNER_ID = 8688749524 # Replace with your Owner ID
-YOUR_USERNAME = '@bibitgamer13'
+# --- Secure Configuration ---
+# Token aur Owner ID ko secure environment variables se read karein
+TOKEN = os.environ.get('BOT_TOKEN', 'YOUR_NEW_BOT_TOKEN_HERE')
+OWNER_ID = int(os.environ.get('OWNER_ID', 0))
 
 # Folder setup - using absolute paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -73,8 +73,7 @@ logger = logging.getLogger(__name__)
 COMMAND_BUTTONS_LAYOUT_USER = [
     ["📤 Upload File", "📂 Check Files"],
     ["⚡ Bot Speed", "💾 Used RAM"],
-    ["📊 Statistics", "🧹 Clear Memory"],
-    ["📞 Contact Owner"]
+    ["📊 Statistics", "🧹 Clear Memory"]
 ]
 
 # --- Database Setup ---
@@ -124,17 +123,14 @@ def run_memory_and_disk_cleanup():
     """Frees up RAM memory and truncates large logs/temps to handle Render 512MB limit."""
     freed_mb = 0
     try:
-        # Python garbage collection
         gc.collect()
 
-        # Clean large logs and temp files in user directories
         for root, dirs, files in os.walk(UPLOAD_BOTS_DIR):
             for file in files:
                 file_path = os.path.join(root, file)
                 if file.endswith('.log') or file.endswith('.tmp'):
                     try:
                         size = os.path.getsize(file_path)
-                        # Truncate logs larger than 1MB
                         if size > 1 * 1024 * 1024:
                             with open(file_path, 'w') as f:
                                 f.write("[Log cleared to save Render memory]\n")
@@ -142,7 +138,6 @@ def run_memory_and_disk_cleanup():
                     except Exception as err:
                         logger.error(f"Error truncating file {file_path}: {err}")
 
-        # Clean temporary system folders created by zip extraction
         for item in os.listdir(tempfile.gettempdir()):
             if item.startswith("user_") or item.startswith("tmp"):
                 item_path = os.path.join(tempfile.gettempdir(), item)
@@ -161,7 +156,7 @@ def run_memory_and_disk_cleanup():
 
 def scheduled_cleaner():
     while True:
-        time.sleep(1800) # Runs every 30 minutes
+        time.sleep(1800)
         run_memory_and_disk_cleanup()
 
 cleaner_thread = threading.Thread(target=scheduled_cleaner, daemon=True)
@@ -317,13 +312,11 @@ def create_main_menu_inline():
         types.InlineKeyboardButton('⚡ Bot Speed', callback_data='speed'),
         types.InlineKeyboardButton('💾 Used RAM', callback_data='ram_usage'),
         types.InlineKeyboardButton('📊 Statistics', callback_data='stats'),
-        types.InlineKeyboardButton('🧹 Clear Memory', callback_data='clear_mem'),
-        types.InlineKeyboardButton('📞 Contact Owner', url=f'https://t.me/{YOUR_USERNAME.replace("@", "")}')
+        types.InlineKeyboardButton('🧹 Clear Memory', callback_data='clear_mem')
     ]
     markup.add(buttons[0], buttons[1])
     markup.add(buttons[2], buttons[3])
     markup.add(buttons[4], buttons[5])
-    markup.add(buttons[6])
     return markup
 
 def create_reply_keyboard_main_menu():
@@ -392,7 +385,6 @@ def _logic_bot_speed(message):
     wait_msg = bot.reply_to(message, "🏃 Testing speed...")
     response_time = round((time.time() - start_time_ping) * 1000, 2)
     
-    # Process specific RAM calculation
     process = psutil.Process(os.getpid())
     mem_used_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     
@@ -403,7 +395,6 @@ def _logic_bot_speed(message):
     bot.edit_message_text(speed_msg, message.chat.id, wait_msg.message_id, parse_mode='Markdown')
 
 def _logic_ram_usage(message):
-    # Process specific RAM calculation fix
     process = psutil.Process(os.getpid())
     used_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     limit_mb = 512.0
@@ -441,11 +432,6 @@ def _logic_statistics(message):
                  f"🟢 Total Active Running Bots: {running_bots_count}\n")
     bot.reply_to(message, stats_msg, parse_mode='Markdown')
 
-def _logic_contact_owner(message):
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton('📞 Contact Owner', url=f'https://t.me/{YOUR_USERNAME.replace("@", "")}'))
-    bot.reply_to(message, "Click to contact Owner:", reply_markup=markup)
-
 # --- Button Mappings ---
 BUTTON_TEXT_TO_LOGIC = {
     "📤 Upload File": _logic_upload_file,
@@ -454,7 +440,6 @@ BUTTON_TEXT_TO_LOGIC = {
     "💾 Used RAM": _logic_ram_usage,
     "📊 Statistics": _logic_statistics,
     "🧹 Clear Memory": _logic_clear_system,
-    "📞 Contact Owner": _logic_contact_owner,
 }
 
 @bot.message_handler(func=lambda message: message.text in BUTTON_TEXT_TO_LOGIC)
@@ -571,3 +556,4 @@ def handle_callbacks(call):
         logger.error(f"Callback error: {e}")
 
 bot.infinity_polling(skip_pending=True)
+
