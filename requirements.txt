@@ -1,2 +1,4 @@
-pyTelegramBotAPI
-
+python-telegram-bot
+flask
+gunicorn
+psutil
