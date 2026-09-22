@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import logging
 import gc
@@ -37,10 +38,11 @@ logger = logging.getLogger(__name__)
 if not os.path.exists(HOST_DIR):
     os.makedirs(HOST_DIR)
 
+# Updated Bottom Reply Keyboard with Restart Option
 KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("📋 Active Scripts"), KeyboardButton("📊 RAM Status")],
-        [KeyboardButton("🛑 Stop All Scripts")]
+        [KeyboardButton("🛑 Stop All Scripts"), KeyboardButton("🔄 Restart Bot")]
     ],
     resize_keyboard=True
 )
@@ -77,13 +79,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 **Features:**\n"
         "• Apni file (`.py`, `.sh`) bhejein -> Auto-Run ho jayegi\n"
         "• **📋 Active Scripts** par click karke scripts **Stop** ya **Restart** karein\n"
-        "• Script crash hone par aapko exact error log mil jayega!",
+        "• Bot ya Scripts ko **🔄 Restart Bot** button se restart karein",
         parse_mode="Markdown",
         reply_markup=KEYBOARD
     )
 
 async def monitor_script_output(proc, file_name, chat_id, context):
-    """Background mein script ke logs monitor karega aur error aane par alert bhejega"""
     await asyncio.sleep(3)
     
     if proc.poll() is not None:
@@ -106,7 +107,6 @@ async def monitor_script_output(proc, file_name, chat_id, context):
             del RUNNING_PROCESSES[proc.pid]
 
 def launch_process(file_path, file_name):
-    """File ko execute karke process object return karta hai"""
     proc = None
     if file_name.endswith(".py"):
         proc = subprocess.Popen(
@@ -288,6 +288,21 @@ async def ram_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=KEYBOARD
     )
 
+async def restart_bot_manager(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Main Bot system ko restart karta hai"""
+    await update.message.reply_text("🔄 **Bot restart ho raha hai... Please wait 5-10 seconds!**", parse_mode="Markdown")
+    
+    # Running sub-processes ko saaf karein
+    for pid in list(RUNNING_PROCESSES.keys()):
+        try:
+            if psutil.pid_exists(pid):
+                psutil.Process(pid).terminate()
+        except Exception:
+            pass
+
+    # Process restart command
+    os.execl(sys.executable, sys.executable, *sys.argv)
+
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
@@ -297,6 +312,8 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await ram_status(update, context)
     elif text == "🛑 Stop All Scripts":
         await stop_all_processes(update, context)
+    elif text == "🔄 Restart Bot":
+        await restart_bot_manager(update, context)
 
 async def post_init(application: Application):
     asyncio.create_task(background_ram_cleaner())
@@ -310,12 +327,13 @@ def main():
     app.add_handler(CommandHandler("list", list_processes))
     app.add_handler(CommandHandler("stopall", stop_all_processes))
     app.add_handler(CommandHandler("ram", ram_status))
+    app.add_handler(CommandHandler("restart", restart_bot_manager))
     
     app.add_handler(CallbackQueryHandler(handle_inline_button))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
-    print("🤖 Process Manager with Restart Option started...")
+    print("🤖 Process Manager Bot started...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
