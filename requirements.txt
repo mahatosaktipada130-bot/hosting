@@ -1,3 +1,7 @@
 python-telegram-bot
 flask
 psutil
+requests
+aiohttp
+colorama
+pydantic
