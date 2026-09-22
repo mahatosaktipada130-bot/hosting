@@ -4,6 +4,7 @@ import logging
 import gc
 import psutil
 import asyncio
+import threading
 from threading import Thread
 from flask import Flask
 from telegram import Update
@@ -17,10 +18,6 @@ web_app = Flask(__name__)
 @web_app.route('/')
 def home():
     return "Bot & Memory Cleaner are running live!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    web_app.run(host='0.0.0.0', port=port)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #                  CONFIG
@@ -94,24 +91,32 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Task complete hone par immediate cleanup
     clear_memory()
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                  MAIN
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async def post_init(application: Application):
     # Background Memory Cleaner Task Start Karein
     asyncio.create_task(background_ram_cleaner())
 
-def main():
-    # Flask Server ko threading ke zariye background mein run karein
-    Thread(target=run_flask).start()
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#         TELEGRAM BOT THREAD FOR GUNICORN
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def run_telegram_bot():
+    """Gunicorn ke andar background thread mein Telegram bot ko run karta hai"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
     print("🤖 Bot started with Memory Auto-Cleaner...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
+# Gunicorn start hote hi bot thread run ho jayega
+threading.Thread(target=run_telegram_bot, daemon=True).start()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                  LOCAL RUN
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host='0.0.0.0', port=port)
 
