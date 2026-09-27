@@ -26,3 +26,5 @@ flask
 psutil
 colorama
 waitress
+faker
+urllib3
