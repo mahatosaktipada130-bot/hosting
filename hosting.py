@@ -68,13 +68,6 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Command Button Layouts ---
-COMMAND_BUTTONS_LAYOUT_USER = [
-    ["📤 Upload File", "📂 Check Files"],
-    ["⚡ Bot Speed", "💾 Used RAM"],
-    ["📊 Statistics", "🧹 Clear Memory"]
-]
-
 # --- Database Setup ---
 DB_LOCK = threading.Lock()
 
@@ -317,12 +310,6 @@ def create_main_menu_inline():
     markup.add(buttons[4], buttons[5])
     return markup
 
-def create_reply_keyboard_main_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    for row_buttons_text in COMMAND_BUTTONS_LAYOUT_USER:
-        markup.add(*[types.KeyboardButton(text) for text in row_buttons_text])
-    return markup
-
 def create_control_buttons(script_owner_id, file_name, is_running=True):
     markup = types.InlineKeyboardMarkup(row_width=2)
     if is_running:
@@ -357,8 +344,9 @@ def _logic_send_welcome(message):
                         f"🤖 Host & run Python (`.py`) or JS (`.js`) scripts.\n\n"
                         f"👇 Use options below to manage your bot scripts.")
     
+    # Inline menu with colors enabled
     bot.send_message(message.chat.id, welcome_msg_text, 
-                     reply_markup=create_reply_keyboard_main_menu(), 
+                     reply_markup=create_main_menu_inline(), 
                      parse_mode='Markdown')
 
 def _logic_upload_file(message):
@@ -429,21 +417,6 @@ def _logic_statistics(message):
                  f"📂 Total Files Hosted: {total_files_records}\n"
                  f"🟢 Total Active Running Bots: {running_bots_count}\n")
     bot.reply_to(message, stats_msg, parse_mode='Markdown')
-
-# --- Button Mappings ---
-BUTTON_TEXT_TO_LOGIC = {
-    "📤 Upload File": _logic_upload_file,
-    "📂 Check Files": _logic_check_files,
-    "⚡ Bot Speed": _logic_bot_speed,
-    "💾 Used RAM": _logic_ram_usage,
-    "📊 Statistics": _logic_statistics,
-    "🧹 Clear Memory": _logic_clear_system,
-}
-
-@bot.message_handler(func=lambda message: message.text in BUTTON_TEXT_TO_LOGIC)
-def handle_button_text(message):
-    logic_func = BUTTON_TEXT_TO_LOGIC.get(message.text)
-    if logic_func: logic_func(message)
 
 # --- Clear System Commands/Keywords ---
 @bot.message_handler(commands=['clear', 'clean'])
