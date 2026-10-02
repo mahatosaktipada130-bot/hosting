@@ -42,7 +42,6 @@ keep_alive()
 # --- End Flask Keep Alive ---
 
 # --- Secure Configuration ---
-# Token aur Owner ID ko secure environment variables se read karein
 TOKEN = os.environ.get('BOT_TOKEN', 'YOUR_NEW_BOT_TOKEN_HERE')
 OWNER_ID = int(os.environ.get('OWNER_ID', 0))
 
@@ -120,7 +119,6 @@ load_data()
 
 # --- Render 512MB RAM & Disk Limit Cleanup System ---
 def run_memory_and_disk_cleanup():
-    """Frees up RAM memory and truncates large logs/temps to handle Render 512MB limit."""
     freed_mb = 0
     try:
         gc.collect()
@@ -307,12 +305,12 @@ def add_active_user(user_id):
 def create_main_menu_inline():
     markup = types.InlineKeyboardMarkup(row_width=2)
     buttons = [
-        types.InlineKeyboardButton('📤 Upload File', callback_data='upload'),
-        types.InlineKeyboardButton('📂 Check Files', callback_data='check_files'),
-        types.InlineKeyboardButton('⚡ Bot Speed', callback_data='speed'),
-        types.InlineKeyboardButton('💾 Used RAM', callback_data='ram_usage'),
-        types.InlineKeyboardButton('📊 Statistics', callback_data='stats'),
-        types.InlineKeyboardButton('🧹 Clear Memory', callback_data='clear_mem')
+        types.InlineKeyboardButton('📤 Upload File', callback_data='upload', style='primary'),
+        types.InlineKeyboardButton('📂 Check Files', callback_data='check_files', style='primary'),
+        types.InlineKeyboardButton('⚡ Bot Speed', callback_data='speed', style='primary'),
+        types.InlineKeyboardButton('💾 Used RAM', callback_data='ram_usage', style='primary'),
+        types.InlineKeyboardButton('📊 Statistics', callback_data='stats', style='primary'),
+        types.InlineKeyboardButton('🧹 Clear Memory', callback_data='clear_mem', style='danger')
     ]
     markup.add(buttons[0], buttons[1])
     markup.add(buttons[2], buttons[3])
@@ -329,20 +327,20 @@ def create_control_buttons(script_owner_id, file_name, is_running=True):
     markup = types.InlineKeyboardMarkup(row_width=2)
     if is_running:
         markup.row(
-            types.InlineKeyboardButton("🔴 Stop", callback_data=f'stop_{script_owner_id}_{file_name}'),
-            types.InlineKeyboardButton("🔄 Restart", callback_data=f'restart_{script_owner_id}_{file_name}')
+            types.InlineKeyboardButton("🔴 Stop", callback_data=f'stop_{script_owner_id}_{file_name}', style='danger'),
+            types.InlineKeyboardButton("🔄 Restart", callback_data=f'restart_{script_owner_id}_{file_name}', style='primary')
         )
         markup.row(
-            types.InlineKeyboardButton("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}'),
-            types.InlineKeyboardButton("📜 Logs", callback_data=f'logs_{script_owner_id}_{file_name}')
+            types.InlineKeyboardButton("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}', style='danger'),
+            types.InlineKeyboardButton("📜 Logs", callback_data=f'logs_{script_owner_id}_{file_name}', style='primary')
         )
     else:
         markup.row(
-            types.InlineKeyboardButton("🟢 Start", callback_data=f'start_{script_owner_id}_{file_name}'),
-            types.InlineKeyboardButton("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}')
+            types.InlineKeyboardButton("🟢 Start", callback_data=f'start_{script_owner_id}_{file_name}', style='primary'),
+            types.InlineKeyboardButton("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}', style='danger')
         )
         markup.row(
-            types.InlineKeyboardButton("📜 View Logs", callback_data=f'logs_{script_owner_id}_{file_name}')
+            types.InlineKeyboardButton("📜 View Logs", callback_data=f'logs_{script_owner_id}_{file_name}', style='primary')
         )
     markup.add(types.InlineKeyboardButton("🔙 Back to Files", callback_data='check_files'))
     return markup
@@ -377,7 +375,7 @@ def _logic_check_files(message):
         is_running = is_bot_running(user_id, file_name)
         status_icon = "🟢 Running" if is_running else "🔴 Stopped"
         btn_text = f"{file_name} ({file_type}) - {status_icon}"
-        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f'file_{user_id}_{file_name}'))
+        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f'file_{user_id}_{file_name}', style='primary'))
     bot.reply_to(message, "📂 Your files:\nClick to manage.", reply_markup=markup, parse_mode='Markdown')
 
 def _logic_bot_speed(message):
@@ -556,4 +554,3 @@ def handle_callbacks(call):
         logger.error(f"Callback error: {e}")
 
 bot.infinity_polling(skip_pending=True)
-
