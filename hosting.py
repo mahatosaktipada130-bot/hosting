@@ -440,7 +440,7 @@ def _logic_bot_speed(message):
     mem_used_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     
     speed_msg = (f"⚡ **Bot Speed & System Status**:\n\n"
-                 f"⏱️️ API Latency: {response_time} ms\n"
+                 f"⏱ API Latency: {response_time} ms\n"
                  f"💾 Process RAM Used: {mem_used_mb} MB / 512 MB\n"
                  f"🟢 System Status: Active")
     bot.edit_message_text(speed_msg, message.chat.id, wait_msg.message_id, parse_mode='Markdown')
@@ -600,12 +600,18 @@ def handle_callbacks(call):
                     content = f.read()[-3000:]
                 bot.send_message(call.message.chat.id, f"📜 **Logs for {file_name}**:\n```\n{content or 'Empty Log'}\n```", parse_mode='Markdown')
             else:
-                bot.reply_to(call.message, "⚠️ No log file found.")
+                bot.reply_to(call.message, "⚠️️ No log file found.")
     except Exception as e:
         logger.error(f"Callback error: {e}")
 
-# --- Safe Polling Loop with Conflict/Error Recovery ---
+# --- Safe Polling Loop with Webhook Reset & Error Recovery ---
 print("Bot is starting polling...")
+try:
+    bot.remove_webhook()
+    time.sleep(1)
+except Exception as e:
+    print(f"Webhook remove error: {e}")
+
 while True:
     try:
         bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
