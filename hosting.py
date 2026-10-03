@@ -6,6 +6,64 @@ import zipfile
 import tempfile
 import shutil
 from telebot import types
+
+# --- PRIME HOSTING button styling + custom emoji support ---
+DEFAULT_BUTTON_EMOJI = {
+    "rocket": "5188481279963715781",
+    "bot": "5931415565955503486",
+    "folder": "5271604874419647061",
+    "speed": "5415655814079723871",
+    "ram": "5927169041595634481",
+    "stats": "5438496463044752972",
+    "clean": "5424972470023104089",
+    "stop": "5210952531676504517",
+    "start": "5206607081334906820",
+    "restart": "5375338737028841420",
+    "delete": "5210952531676504517",
+    "logs": "5447644880824181073",
+    "back": "5415655814079723871",
+}
+
+def _btn_to_dict_patch(original_to_dict):
+    def patched(self):
+        d = original_to_dict(self)
+        style = getattr(self, "_style", None)
+        icon = getattr(self, "_icon_custom_emoji_id", None)
+        if style:
+            d["style"] = style
+        if icon:
+            d["icon_custom_emoji_id"] = str(icon)
+        return d
+    return patched
+
+if not getattr(types.InlineKeyboardButton, "_style_patched", False):
+    types.InlineKeyboardButton.to_dict = _btn_to_dict_patch(types.InlineKeyboardButton.to_dict)
+    types.InlineKeyboardButton._style_patched = True
+if not getattr(types.KeyboardButton, "_style_patched", False):
+    types.KeyboardButton.to_dict = _btn_to_dict_patch(types.KeyboardButton.to_dict)
+    types.KeyboardButton._style_patched = True
+
+def kbtn(text, style=None, icon=None):
+    btn = types.KeyboardButton(text)
+    if style:
+        btn._style = style
+    if icon and DEFAULT_BUTTON_EMOJI.get(icon):
+        btn._icon_custom_emoji_id = DEFAULT_BUTTON_EMOJI[icon]
+    return btn
+
+def ibtn(text, callback_data=None, style=None, icon=None, url=None):
+    kwargs = {}
+    if callback_data is not None:
+        kwargs["callback_data"] = callback_data
+    if url is not None:
+        kwargs["url"] = url
+    btn = types.InlineKeyboardButton(text, **kwargs)
+    if style:
+        btn._style = style
+    if icon and DEFAULT_BUTTON_EMOJI.get(icon):
+        btn._icon_custom_emoji_id = DEFAULT_BUTTON_EMOJI[icon]
+    return btn
+
 import time
 from datetime import datetime
 import psutil
@@ -43,7 +101,7 @@ keep_alive()
 
 # --- Secure Configuration ---
 # Token aur Owner ID ko secure environment variables se read karein
-TOKEN = os.environ.get('BOT_TOKEN', 'YOUR_NEW_BOT_TOKEN_HERE')
+TOKEN = os.environ.get('BOT_TOKEN', '0')
 OWNER_ID = int(os.environ.get('OWNER_ID', 0))
 
 # Folder setup - using absolute paths
@@ -306,24 +364,36 @@ def add_active_user(user_id):
 # --- Menu Creation ---
 def create_main_menu_inline():
     markup = types.InlineKeyboardMarkup(row_width=2)
-    buttons = [
-        types.InlineKeyboardButton('📤 Upload File', callback_data='upload'),
-        types.InlineKeyboardButton('📂 Check Files', callback_data='check_files'),
-        types.InlineKeyboardButton('⚡ Bot Speed', callback_data='speed'),
-        types.InlineKeyboardButton('💾 Used RAM', callback_data='ram_usage'),
-        types.InlineKeyboardButton('📊 Statistics', callback_data='stats'),
-        types.InlineKeyboardButton('🧹 Clear Memory', callback_data='clear_mem')
-    ]
-    markup.add(buttons[0], buttons[1])
-    markup.add(buttons[2], buttons[3])
-    markup.add(buttons[4], buttons[5])
+    markup.row(
+        ibtn('Upload File', callback_data='upload', style='primary', icon='rocket'),
+        ibtn('Check Files', callback_data='check_files', style='primary', icon='folder')
+    )
+    markup.row(
+        ibtn('Bot Speed', callback_data='speed', style='primary', icon='speed'),
+        ibtn('Used RAM', callback_data='ram_usage', style='primary', icon='ram')
+    )
+    markup.row(
+        ibtn('Statistics', callback_data='stats', style='primary', icon='stats'),
+        ibtn('Clear Memory', callback_data='clear_mem', style='danger', icon='clean')
+    )
     return markup
 
 def create_reply_keyboard_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    for row_buttons_text in COMMAND_BUTTONS_LAYOUT_USER:
-        markup.add(*[types.KeyboardButton(text) for text in row_buttons_text])
+    markup.row(
+        kbtn('📤 Upload File', style='primary', icon='rocket'),
+        kbtn('📂 Check Files', style='success', icon='folder')
+    )
+    markup.row(
+        kbtn('⚡ Bot Speed', style='danger', icon='speed'),
+        kbtn('💾 Used RAM', style='primary', icon='ram')
+    )
+    markup.row(
+        kbtn('📊 Statistics', style='success', icon='stats'),
+        kbtn('🧹 Clear Memory', style='danger', icon='clean')
+    )
     return markup
+
 
 def create_control_buttons(script_owner_id, file_name, is_running=True):
     markup = types.InlineKeyboardMarkup(row_width=2)
