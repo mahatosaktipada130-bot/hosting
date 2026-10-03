@@ -100,7 +100,6 @@ keep_alive()
 # --- End Flask Keep Alive ---
 
 # --- Secure Configuration ---
-# Token aur Owner ID ko secure environment variables se read karein
 TOKEN = os.environ.get('BOT_TOKEN', '0')
 OWNER_ID = int(os.environ.get('OWNER_ID', 0))
 
@@ -178,7 +177,6 @@ load_data()
 
 # --- Render 512MB RAM & Disk Limit Cleanup System ---
 def run_memory_and_disk_cleanup():
-    """Frees up RAM memory and truncates large logs/temps to handle Render 512MB limit."""
     freed_mb = 0
     try:
         gc.collect()
@@ -362,22 +360,6 @@ def add_active_user(user_id):
         finally: conn.close()
 
 # --- Menu Creation ---
-def create_main_menu_inline():
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.row(
-        ibtn('Upload File', callback_data='upload', style='primary', icon='rocket'),
-        ibtn('Check Files', callback_data='check_files', style='primary', icon='folder')
-    )
-    markup.row(
-        ibtn('Bot Speed', callback_data='speed', style='primary', icon='speed'),
-        ibtn('Used RAM', callback_data='ram_usage', style='primary', icon='ram')
-    )
-    markup.row(
-        ibtn('Statistics', callback_data='stats', style='primary', icon='stats'),
-        ibtn('Clear Memory', callback_data='clear_mem', style='danger', icon='clean')
-    )
-    return markup
-
 def create_reply_keyboard_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.row(
@@ -393,7 +375,6 @@ def create_reply_keyboard_main_menu():
         kbtn('🧹 Clear Memory', style='danger', icon='clean')
     )
     return markup
-
 
 def create_control_buttons(script_owner_id, file_name, is_running=True):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -459,7 +440,7 @@ def _logic_bot_speed(message):
     mem_used_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     
     speed_msg = (f"⚡ **Bot Speed & System Status**:\n\n"
-                 f"⏱️ API Latency: {response_time} ms\n"
+                 f"⏱️️ API Latency: {response_time} ms\n"
                  f"💾 Process RAM Used: {mem_used_mb} MB / 512 MB\n"
                  f"🟢 System Status: Active")
     bot.edit_message_text(speed_msg, message.chat.id, wait_msg.message_id, parse_mode='Markdown')
@@ -486,7 +467,6 @@ def _logic_clear_system(message):
                           message.chat.id, wait_msg.message_id, parse_mode='Markdown')
 
 def _logic_statistics(message):
-    user_id = message.from_user.id
     total_users = len(active_users)
     total_files_records = sum(len(files) for files in user_files.values())
 
@@ -517,7 +497,6 @@ def handle_button_text(message):
     logic_func = BUTTON_TEXT_TO_LOGIC.get(message.text)
     if logic_func: logic_func(message)
 
-# --- Clear System Commands/Keywords ---
 @bot.message_handler(commands=['clear', 'clean'])
 def command_clear(message):
     _logic_clear_system(message)
@@ -625,4 +604,11 @@ def handle_callbacks(call):
     except Exception as e:
         logger.error(f"Callback error: {e}")
 
-bot.infinity_polling(skip_pending=True)
+# --- Safe Polling Loop with Conflict/Error Recovery ---
+print("Bot is starting polling...")
+while True:
+    try:
+        bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        logger.error(f"Polling exception encountered: {e}")
+        time.sleep(5)
