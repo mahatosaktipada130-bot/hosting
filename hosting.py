@@ -79,7 +79,6 @@ from flask import Flask
 
 app = Flask('')
 
-# Flask ke redundant logs silent karne ke liye
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
@@ -97,43 +96,35 @@ def keep_alive():
     print("Flask Keep-Alive server started in background.")
 
 keep_alive()
-# --- End Flask Keep Alive ---
 
 # --- Secure Configuration ---
 TOKEN = os.environ.get('BOT_TOKEN', '0')
 OWNER_ID = int(os.environ.get('OWNER_ID', 0))
 
-# Folder setup - using absolute paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_BOTS_DIR = os.path.join(BASE_DIR, 'upload_bots')
 IROTECH_DIR = os.path.join(BASE_DIR, 'inf')
 DATABASE_PATH = os.path.join(IROTECH_DIR, 'bot_data.db')
 
-# Create necessary directories
 os.makedirs(UPLOAD_BOTS_DIR, exist_ok=True)
 os.makedirs(IROTECH_DIR, exist_ok=True)
 
-# Initialize bot
 bot = telebot.TeleBot(TOKEN)
 
-# --- Data structures ---
-bot_scripts = {} # {script_key: info_dict}
-user_files = {}   # {user_id: [(file_name, file_type), ...]}
+bot_scripts = {}
+user_files = {}
 active_users = set()
 
-# --- Logging Setup ---
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Command Button Layouts ---
 COMMAND_BUTTONS_LAYOUT_USER = [
     ["📤 Upload File", "📂 Check Files"],
     ["⚡ Bot Speed", "💾 Used RAM"],
     ["📊 Statistics", "🧹 Clear Memory"]
 ]
 
-# --- Database Setup ---
 DB_LOCK = threading.Lock()
 
 def init_db():
@@ -175,7 +166,6 @@ def load_data():
 init_db()
 load_data()
 
-# --- Render 512MB RAM & Disk Limit Cleanup System ---
 def run_memory_and_disk_cleanup():
     freed_mb = 0
     try:
@@ -218,7 +208,6 @@ def scheduled_cleaner():
 cleaner_thread = threading.Thread(target=scheduled_cleaner, daemon=True)
 cleaner_thread.start()
 
-# --- Helper Functions ---
 def get_user_folder(user_id):
     user_folder = os.path.join(UPLOAD_BOTS_DIR, str(user_id))
     os.makedirs(user_folder, exist_ok=True)
@@ -268,6 +257,35 @@ def kill_process_tree(process_info):
     except Exception as e:
         logger.error(f"Error killing process tree for {script_key}: {e}")
 
+# --- Robust Auto Dependency Checker & Installer ---
+def check_and_install_dependencies(script_path, user_folder):
+    """Automatically detects imports (aiohttp, aiogram, telebot, requests, etc.) and installs them globally/locally."""
+    try:
+        with open(script_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        required_packages = set()
+        if 'aiogram' in content:
+            required_packages.add('aiogram')
+        if 'aiohttp' in content:
+            required_packages.add('aiohttp')
+        if 'telebot' in content or 'pyTelegramBotAPI' in content:
+            required_packages.add('pyTelegramBotAPI')
+        if 'requests' in content:
+            required_packages.add('requests')
+        if 'flask' in content:
+            required_packages.add('Flask')
+        if 'bs4' in content or 'beautifulsoup4' in content:
+            required_packages.add('beautifulsoup4')
+        
+        if required_packages:
+            logger.info(f"Installing detected dependencies for {script_path}: {list(required_packages)}")
+            # Install globally so python interpreter can find them directly
+            subprocess.run([sys.executable, "-m", "pip", "install"] + list(required_packages), 
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        logger.error(f"Error auto-installing dependencies: {e}")
+
 # --- Script Runners ---
 def run_script(script_path, script_owner_id, user_folder, file_name, message_obj_for_reply):
     script_key = f"{script_owner_id}_{file_name}"
@@ -275,6 +293,9 @@ def run_script(script_path, script_owner_id, user_folder, file_name, message_obj
         if not os.path.exists(script_path):
             bot.reply_to(message_obj_for_reply, f"❌ Error: Script '{file_name}' not found!")
             return
+
+        # Automatically check and install required modules (aiohttp, aiogram, etc.)
+        check_and_install_dependencies(script_path, user_folder)
 
         log_file_path = os.path.join(user_folder, f"{os.path.splitext(file_name)[0]}.log")
         log_file = open(log_file_path, 'w', encoding='utf-8', errors='ignore')
@@ -295,7 +316,7 @@ def run_script(script_path, script_owner_id, user_folder, file_name, message_obj
             'script_owner_id': script_owner_id, 'start_time': datetime.now(),
             'user_folder': user_folder, 'type': 'py', 'script_key': script_key
         }
-        bot.reply_to(message_obj_for_reply, f"✅ Python script '{file_name}' started! (PID: {process.pid})")
+        bot.reply_to(message_obj_for_reply, f"✅ Python script '{file_name}' started successfully! (PID: {process.pid})")
     except Exception as e:
         bot.reply_to(message_obj_for_reply, f"❌ Error starting Python script '{file_name}': {str(e)}")
 
@@ -359,7 +380,7 @@ def add_active_user(user_id):
             conn.commit()
         finally: conn.close()
 
-# --- Menu Creation ---
+# --- Menu Creation with Styled Inline Buttons ---
 def create_reply_keyboard_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.row(
@@ -380,22 +401,22 @@ def create_control_buttons(script_owner_id, file_name, is_running=True):
     markup = types.InlineKeyboardMarkup(row_width=2)
     if is_running:
         markup.row(
-            types.InlineKeyboardButton("🔴 Stop", callback_data=f'stop_{script_owner_id}_{file_name}'),
-            types.InlineKeyboardButton("🔄 Restart", callback_data=f'restart_{script_owner_id}_{file_name}')
+            ibtn("🔴 Stop", callback_data=f'stop_{script_owner_id}_{file_name}', style='danger', icon='stop'),
+            ibtn("🔄 Restart", callback_data=f'restart_{script_owner_id}_{file_name}', style='primary', icon='restart')
         )
         markup.row(
-            types.InlineKeyboardButton("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}'),
-            types.InlineKeyboardButton("📜 Logs", callback_data=f'logs_{script_owner_id}_{file_name}')
+            ibtn("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}', style='danger', icon='delete'),
+            ibtn("📜 Logs", callback_data=f'logs_{script_owner_id}_{file_name}', style='success', icon='logs')
         )
     else:
         markup.row(
-            types.InlineKeyboardButton("🟢 Start", callback_data=f'start_{script_owner_id}_{file_name}'),
-            types.InlineKeyboardButton("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}')
+            ibtn("🟢 Start", callback_data=f'start_{script_owner_id}_{file_name}', style='success', icon='start'),
+            ibtn("🗑️ Delete", callback_data=f'delete_{script_owner_id}_{file_name}', style='danger', icon='delete')
         )
         markup.row(
-            types.InlineKeyboardButton("📜 View Logs", callback_data=f'logs_{script_owner_id}_{file_name}')
+            ibtn("📜 View Logs", callback_data=f'logs_{script_owner_id}_{file_name}', style='success', icon='logs')
         )
-    markup.add(types.InlineKeyboardButton("🔙 Back to Files", callback_data='check_files'))
+    markup.add(ibtn("🔙 Back to Files", callback_data='check_files', style='primary', icon='back'))
     return markup
 
 # --- Handlers Logic ---
@@ -428,7 +449,7 @@ def _logic_check_files(message):
         is_running = is_bot_running(user_id, file_name)
         status_icon = "🟢 Running" if is_running else "🔴 Stopped"
         btn_text = f"{file_name} ({file_type}) - {status_icon}"
-        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f'file_{user_id}_{file_name}'))
+        markup.add(ibtn(btn_text, callback_data=f'file_{user_id}_{file_name}', style='primary', icon='folder'))
     bot.reply_to(message, "📂 Your files:\nClick to manage.", reply_markup=markup, parse_mode='Markdown')
 
 def _logic_bot_speed(message):
@@ -600,7 +621,7 @@ def handle_callbacks(call):
                     content = f.read()[-3000:]
                 bot.send_message(call.message.chat.id, f"📜 **Logs for {file_name}**:\n```\n{content or 'Empty Log'}\n```", parse_mode='Markdown')
             else:
-                bot.reply_to(call.message, "⚠️️ No log file found.")
+                bot.reply_to(call.message, "⚠ No log file found.")
     except Exception as e:
         logger.error(f"Callback error: {e}")
 
