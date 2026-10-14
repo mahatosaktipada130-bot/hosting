@@ -89,7 +89,7 @@ def keep_alive():
     print("Flask Keep-Alive server started.")
 
 # --- CONFIGURATION ---
-TOKEN = "BOT_TOKEN"  # apna token yaha dalo
+TOKEN = "TOKEN"  # apna token yaha dalo
 OWNER_ID = 0  # apna telegram user id yaha dalo
 ADMIN_ID = 0  # admin id yaha dalo (owner jaisa hi rakh sakte ho)
 
